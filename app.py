@@ -1,29 +1,43 @@
-from flask import Flask, request, jsonify
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import pandas as pd
 import os
-from agents.task_executor import TaskExecutor
 
-app = Flask(__name__)
+app = FastAPI(title="Data Analyst Agent")
 
-# Initialize the AI agent
-executor = TaskExecutor()
+DATA_DIR = "data"
+if not os.path.exists(DATA_DIR):
+    os.makedirs(DATA_DIR)
 
-@app.route("/execute", methods=["POST"])
-def execute():
-    data = request.get_json()
-    task = data.get("task")
 
-    if not task:
-        return jsonify({"error": "Task not provided"}), 400
+class Query(BaseModel):
+    task: str
+    file: str = None
 
-    try:
-        result = executor.run(task)
-        return jsonify({"task": task, "result": result})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
-@app.route("/health", methods=["GET"])
-def health():
-    return jsonify({"status": "ok"})
+@app.get("/")
+def root():
+    return {"message": "Data Analyst Agent is running!"}
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+
+@app.post("/query")
+def query_agent(query: Query):
+    if query.file:
+        file_path = os.path.join(DATA_DIR, query.file)
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="File not found")
+
+        try:
+            df = pd.read_csv(file_path)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error reading file: {e}")
+
+        if "summary" in query.task.lower():
+            return {"summary": df.describe().to_dict()}
+
+        if "columns" in query.task.lower():
+            return {"columns": list(df.columns)}
+
+        return {"message": f"Task '{query.task}' not recognized for CSV."}
+
+    return {"message": f"Task '{query.task}' executed (no file provided)."}
