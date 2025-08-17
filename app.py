@@ -45,8 +45,8 @@ def analyze():
         with open(questions_path, 'r') as f:
             task = f.read()
         
-        # Process the task with the executor
-        result = executor.run(task)
+        # Process the task with the executor, passing all uploaded files
+        result = executor.run(task, file_paths=list(files.values()))
         
         # Clean up uploaded files
         for filepath in files.values():
